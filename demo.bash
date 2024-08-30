@@ -66,7 +66,9 @@ __EOF
 sudo lxc launch ubuntu:jammy maas -p default -p maas
 sudo lxc config device add maas eth0 nic name=eth0 nictype=bridged parent=maas-ctrl
 sudo lxc config device set maas eth0 ipv4.address 10.10.0.2
+echo "Restarting maas LXC container"
 sudo lxc restart maas
+sleep 30
 
 cat << __EOF | sudo lxc exec maas -- tee /etc/netplan/99-maas-kvm-net.yaml
 network:
@@ -76,6 +78,7 @@ network:
             addresses:
                 - 10.20.0.2/24
 __EOF
+sudo lxc exec maas -- chmod 0600 /etc/netplan/99-maas-kvm-net.yaml
 sudo lxc exec maas -- netplan apply
 
 sudo lxc exec maas -- snap install maas-test-db
@@ -88,6 +91,11 @@ sudo lxc exec maas -- maas createadmin --username maas --password maas --email m
 
 sudo lxc exec maas -- bash -c "maas apikey --username=maas | tee ./api-key"
 
+while [[ "$(curl -k -s -o /dev/null -w "%{http_code}" http://10.10.0.2:5240/MAAS/api/2.0/)" == "502" ]]
+do
+	echo "Waiting for MAAS API to start"
+	sleep 5
+done
 sudo lxc exec maas -- bash -c 'maas login maas http://10.10.0.2:5240/MAAS/api/2.0/ $(cat api-key)'
 sudo lxc exec maas -- maas maas maas set-config name=upstream_dns value=8.8.8.8
 sudo lxc exec maas -- maas logout maas
@@ -105,16 +113,22 @@ export ip_range=$(sudo lxc exec maas -- maas maas ipranges create type=dynamic s
 sudo lxc exec maas -- maas maas vlan update $target_fabric_id untagged dhcp_on=True primary_rack=$target_rack_controller
 sudo lxc exec maas -- maas logout maas
 
-token=$(sudo lxc config trust add --name maas)
+token=$(sudo lxc config trust add --name maas | tail -1)
 sudo lxc exec maas -- bash -c 'maas login maas http://10.10.0.2:5240/MAAS/api/2.0/ $(cat api-key)'
 sudo lxc exec maas -- maas maas vm-hosts create type=lxd power_address=10.10.0.1 project=maas name=maas-host password="$token"
 sudo lxc exec maas -- maas logout maas
 
 sudo lxc exec maas -- bash -c 'maas login maas http://10.10.0.2:5240/MAAS/api/2.0/ $(cat api-key)'
-sudo lxc exec maas -- maas maas vm-host compose 3 cores=12 memory=32000 storage=0:80 hostname=sunbeam-one
+sudo lxc exec maas -- maas maas vm-host compose 1 cores=12 memory=32000 storage=0:80 hostname=sunbeam-one
 sudo lxc exec maas -- maas logout maas
 
+sudo lxc exec maas -- bash -c 'maas login maas http://10.10.0.2:5240/MAAS/api/2.0/ $(cat api-key)'
 system_id=$(sudo lxc exec maas -- maas maas machines read hostname=sunbeam-one | jq -r '.[0] | .system_id')
+while [[ "$(sudo lxc exec maas -- maas maas machine read $system_id | jq -r .status_name)" != "Ready" ]]
+do
+	echo "Waiting for LXD VM to reach Ready status"
+	sleep 5;
+done
 sudo lxc exec maas -- maas maas machine deploy $system_id
 
 sudo lxc exec sunbeam-one --project maas -- snap install openstack --channel 2024.1/edge
