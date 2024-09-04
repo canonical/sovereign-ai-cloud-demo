@@ -57,6 +57,44 @@ cd ./sovereign-ai-cloud-demo
 bash ./demo.bash
 ```
 
+### How to access the demo environment
+If the demo script runs successfully, the demo environment is a LXD VM running on your physical machine. You can access the demo environment by using the following command:
+```
+lxc exec --user 1000 --group 584788 --cwd /home/ubuntu sunbeam-one --project maas -- /usr/bin/bash
+```
+
+After you run that command, you will have a shell session as the `ubuntu` user in the demo environment. The `ubuntu` user is the user that has access to OpenStack Sunbeam and the Canonical Data Science Stack in the demo environment.
+
+You can access OpenStack Sunbeam through the `sunbeam` command and the Canonical Data Science Stack through the `dss` command.
+
+#### Access the demo Jupyter notebook
+From within the demo environment, use `kubectl` to find the full name of the `my-notebook` pod like in the following command:
+```
+sudo kubectl get pods -n dss
+```
+If you run the previous command, you should see output that looks similar to this example:
+```
+ubuntu@sunbeam-one:/home/ubuntu$ sudo kubectl get pods -n dss
+NAME                           READY   STATUS    RESTARTS   AGE
+mlflow-7fcf655ff9-vrphc        1/1     Running   0          122m
+my-notebook-55cd95df56-ljp79   1/1     Running   0          121m
+```
+The pod name in this example is `my-notebook-55cd95df56-ljp79`. Find the name of your `my-notebook` pod and save that name.
+
+Use `kubectl` to set up port forwarding from the LXD VM to the Jupyter notebook container like in the following command:
+```
+sudo kubectl port-forward -n dss --address 0.0.0.0 <NOTEBOOK_POD_NAME> 8080:8888
+```
+Replace `<NOTEBOOK_POD_NAME>` with the actual pod name you saved in the previous step. If the command works successfully you should see output like the following:
+```
+ubuntu@sunbeam-one:/home/ubuntu$ sudo kubectl port-forward -n dss --address 0.0.0.0 my-notebook-55cd95df56-ljp79 8080:8888
+Forwarding from 0.0.0.0:8080 -> 8888
+```
+At this point you should be able to access the Jupyter Notebook web interface by connecting to port 8080 on the LXD VM. If you have a web browser on the machine on which you ran the demo, navigate to 10.20.0.3:8080/ to see the Jupyter Notebook web interface. If you ran the demo on a machine without a web browser or graphical interface, you can use an SSH tunnel to enable a connection from your local machine if you are using SSH to manage the machine running the demo. Here is an example SSH tunnel command:
+```
+ssh -L 8080:10.20.0.3:8080 your-user@your-physical-machine-address
+```
+Replace `your-user@your-physical-machine-address` with the username and IP address or domain name of the machine running the demo. If you get an SSH session on the machine running the demo, the tunnel is active. You can then navigate to http://localhost:8080 in your web browser on your local machine to view the demo Jupyter Notebook. When you are done with the SSH tunnel, disconnect (that is, exit or logout) the SSH session with the tunneling command.
 ### Clean up select demo artifacts
 If you need to rerun the demo, there is a clean up script that will clean the assets that will prevent the script from running again. Run the clean up script from within the cloned repo directory with the following command:
 ```
