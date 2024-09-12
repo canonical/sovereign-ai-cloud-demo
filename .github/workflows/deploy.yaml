@@ -3,7 +3,7 @@ on:
   workflow_dispatch:
 jobs:
   deploy:
-    runs-on: [self-hosted, Linux, X64, jammy, large]
+    runs-on: [self-hosted, Linux, X64, jammy, two-xlarge]
     steps:
       - name: Checkout repo
         uses: actions/checkout@v4
