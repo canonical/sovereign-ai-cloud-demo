@@ -1,4 +1,5 @@
 #!/usr/bin/bash
+set -euo pipefail
 sudo ufw disable
 sudo snap install lxd
 sudo lxd init --auto
